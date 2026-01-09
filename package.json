@@ -1,0 +1,12 @@
+{
+    "name": "bedrock-chatbot-monorepo",
+    "private": true,
+    "scripts": {
+        "dev": "concurrently -n BACKEND,FRONTEND -c auto \"npm run dev:backend\" \"npm run dev:frontend\"",
+        "dev:frontend": "npm --prefix frontend run dev",
+        "dev:backend": "bash -lc \"cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000\""
+    },
+    "devDependencies": {
+        "concurrently": "^9.0.0"
+    }
+}
