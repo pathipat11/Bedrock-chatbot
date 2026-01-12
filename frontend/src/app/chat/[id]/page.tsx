@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import ChatComposer from "@/components/chat/ChatComposer";
 import { streamChatSSE } from "@/components/chat/stream";
@@ -128,6 +128,35 @@ export default function ChatRoomPage() {
         }
     }
 
+    async function regenerate() {
+        if (!token) return;
+
+        setErr(null);
+        setStreaming(true);
+
+        // 1) ลบ assistant ล่าสุดใน backend
+        await apiPost(`/api/chat/regenerate?conversation_id=${id}`, {}, token);
+
+        // 2) ลบ assistant ล่าสุดใน UI
+        setMsgs((m) => {
+            const copy = [...m];
+            for (let i = copy.length - 1; i >= 0; i--) {
+                if (copy[i].role === "assistant") {
+                    copy.splice(i, 1);
+                    break;
+                }
+            }
+            return copy;
+        });
+
+        // 3) เอา user ล่าสุดมาส่งใหม่
+        const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+        if (!lastUser) return;
+
+        await onSend(lastUser.content);
+    }
+
+
     function stop() {
         abortRef.current?.abort();
     }
@@ -152,7 +181,14 @@ export default function ChatRoomPage() {
                 <div className="space-y-3">
                     {loading ? <div className="text-sm opacity-70">Loading…</div> : null}
                     {msgs.map((m, i) => (
-                        <MessageBubble key={i} role={m.role} content={m.content} />
+                        <MessageBubble
+                            key={i}
+                            role={m.role}
+                            content={m.content}
+                            showActions={m.role === "assistant" && i === msgs.length - 1} // assistant ล่าสุดเท่านั้น
+                            streaming={streaming}
+                            onRegenerate={regenerate}
+                        />
                     ))}
                     <div ref={bottomRef} />
                 </div>
@@ -177,14 +213,36 @@ export default function ChatRoomPage() {
 
 }
 
-function MessageBubble({ role, content }: { role: "user" | "assistant"; content: string }) {
+function MessageBubble({
+    role,
+    content,
+    showActions,
+    streaming,
+    onRegenerate,
+}: {
+    role: "user" | "assistant";
+    content: string;
+    showActions?: boolean;
+    streaming?: boolean;
+    onRegenerate?: () => void | Promise<void>;
+}) {
     const isUser = role === "user";
+
     return (
         <div className={`chat ${isUser ? "chat-end" : "chat-start"}`}>
             <div className="chat-bubble">
                 {content || (role === "assistant" ? <span className="loading loading-dots loading-sm" /> : "")}
+
+                {!isUser && showActions && !streaming ? (
+                    <div className="mt-2 flex gap-2">
+                        <button onClick={() => onRegenerate?.()} className="btn btn-xs btn-ghost">
+                            🔄 Regenerate
+                        </button>
+                    </div>
+                ) : null}
             </div>
         </div>
     );
 }
+
 

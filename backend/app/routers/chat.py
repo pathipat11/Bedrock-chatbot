@@ -86,3 +86,38 @@ def chat_stream(
         yield f"event: done\ndata: {json.dumps({'ok': True})}\n\n"
 
     return StreamingResponse(sse_gen(), media_type="text/event-stream")
+
+@router.post("/chat/regenerate")
+def regenerate(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+):
+    user_id = get_user_id_from_auth(authorization)
+
+    conv = db.query(models.Conversation).filter(
+        models.Conversation.id == conversation_id,
+        models.Conversation.user_id == user_id,
+    ).first()
+    if not conv:
+        raise HTTPException(404, "Conversation not found")
+
+    # หา assistant message ล่าสุด
+    last_assistant = (
+        db.query(models.Message)
+        .filter(
+            models.Message.conversation_id == conv.id,
+            models.Message.role == "assistant",
+        )
+        .order_by(models.Message.created_at.desc())
+        .first()
+    )
+
+    if not last_assistant:
+        raise HTTPException(400, "Nothing to regenerate")
+
+    # ลบ assistant message ล่าสุด
+    db.delete(last_assistant)
+    db.commit()
+
+    return {"ok": True}
