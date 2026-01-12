@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.db import models
 from app.core.security import decode_token
 from app.services.bedrock_stream import claude_stream
+from app.services.title_gen import generate_title
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -71,6 +72,16 @@ def chat_stream(
         # save assistant message
         db.add(models.Message(conversation_id=conv.id, role="assistant", content=answer))
         db.commit()
+
+        if not conv.title:
+            try:
+                title = generate_title(req.message, answer)
+                conv.title = title
+                db.commit()
+
+                yield f"event: meta\ndata: {json.dumps({'title': title})}\n\n"
+            except Exception:
+                pass
 
         yield f"event: done\ndata: {json.dumps({'ok': True})}\n\n"
 

@@ -104,7 +104,11 @@ export default function ChatRoomPage() {
                 conversationId: id,
                 message: text,
                 signal: ac.signal,
-                onMeta: () => { },
+                onMeta: (meta: any) => {
+                    if (meta?.title) {
+                        window.dispatchEvent(new Event("conversations:refresh"));
+                    }
+                },
                 onDelta: (delta: string) => {
                     setMsgs((m) => {
                         const copy = [...m];
